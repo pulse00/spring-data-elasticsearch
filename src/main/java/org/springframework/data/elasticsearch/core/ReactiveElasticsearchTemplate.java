@@ -96,11 +96,17 @@ public class ReactiveElasticsearchTemplate implements ReactiveElasticsearchOpera
 	}
 
 	public ReactiveElasticsearchTemplate(ReactiveElasticsearchClient client, ElasticsearchConverter converter) {
+		this(client, converter, new DefaultResultMapper(converter.getMappingContext()));
+	}
+
+	public ReactiveElasticsearchTemplate(ReactiveElasticsearchClient client, ElasticsearchConverter converter,
+			ResultsMapper resultsMapper) {
 
 		this.client = client;
 		this.converter = converter;
 		this.mappingContext = converter.getMappingContext();
-		this.resultMapper = new DefaultResultMapper(converter.getMappingContext());
+
+		this.resultMapper = resultsMapper;
 		this.exceptionTranslator = new ElasticsearchExceptionTranslator();
 		this.operations = new EntityOperations(this.mappingContext);
 	}
@@ -182,7 +188,7 @@ public class ReactiveElasticsearchTemplate implements ReactiveElasticsearchOpera
 		Assert.notNull(id, "Id must not be null!");
 
 		return doFindById(id, getPersistentEntity(entityType), index, type)
-				.map(it -> resultMapper.mapEntity(it, entityType));
+				.map(it -> resultMapper.mapGetResult(it, entityType));
 	}
 
 	private Mono<GetResult> doFindById(String id, ElasticsearchPersistentEntity<?> entity, @Nullable String index,
@@ -198,6 +204,7 @@ public class ReactiveElasticsearchTemplate implements ReactiveElasticsearchOpera
 
 	/*
 	 * (non-Javadoc)
+	 * @see org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations#exists(String, Class, String, String)
 	 * @see org.springframework.data.elasticsearch.core.ReactiveElasticsearchOperations#exists(String, Class, String, String)
 	 */
 	@Override
@@ -228,7 +235,7 @@ public class ReactiveElasticsearchTemplate implements ReactiveElasticsearchOpera
 			Class<T> resultType) {
 
 		return doFind(query, getPersistentEntity(entityType), index, type)
-				.map(it -> resultMapper.mapEntity(it, resultType));
+				.map(it -> resultMapper.mapSearchHit(it, resultType));
 	}
 
 	private Flux<SearchHit> doFind(Query query, ElasticsearchPersistentEntity<?> entity, @Nullable String index,
