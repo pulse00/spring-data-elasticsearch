@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,7 +20,6 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 
 import org.elasticsearch.action.get.GetResponse;
@@ -29,6 +28,7 @@ import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.search.SearchHit;
+
 import org.springframework.core.convert.ConversionService;
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.data.domain.Pageable;
@@ -61,6 +61,7 @@ import com.fasterxml.jackson.core.JsonGenerator;
  * @author Ilkang Na
  * @author Sascha Woo
  * @author Christoph Strobl
+ * @author Dmitriy Yakovlev
  */
 public class DefaultResultMapper extends AbstractResultMapper {
 
@@ -105,8 +106,9 @@ public class DefaultResultMapper extends AbstractResultMapper {
 		for (SearchHit hit : response.getHits()) {
 			if (hit != null) {
 				T result = null;
-				if (!StringUtils.isEmpty(hit.getSourceAsString())) {
-					result = mapEntity(hit.getSourceAsString(), clazz);
+				String hitSourceAsString = hit.getSourceAsString();
+				if (!StringUtils.isEmpty(hitSourceAsString)) {
+					result = mapEntity(hitSourceAsString, clazz);
 				} else {
 					result = mapEntity(hit.getFields().values(), clazz);
 				}
@@ -187,8 +189,8 @@ public class DefaultResultMapper extends AbstractResultMapper {
 	}
 
 	@Override
-	public <T> LinkedList<T> mapResults(MultiGetResponse responses, Class<T> clazz) {
-		LinkedList<T> list = new LinkedList<>();
+	public <T> List<T> mapResults(MultiGetResponse responses, Class<T> clazz) {
+		List<T> list = new ArrayList<>();
 		for (MultiGetItemResponse response : responses.getResponses()) {
 			if (!response.isFailed() && response.getResponse().isExists()) {
 				T result = mapEntity(response.getResponse().getSourceAsString(), clazz);

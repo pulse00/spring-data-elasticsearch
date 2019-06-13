@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,7 +17,7 @@ package org.springframework.data.elasticsearch.client.reactive;
 
 import static org.assertj.core.api.Assertions.*;
 
-import org.springframework.data.elasticsearch.ElasticsearchException;
+import lombok.SneakyThrows;
 import reactor.test.StepVerifier;
 
 import java.io.IOException;
@@ -31,6 +31,7 @@ import java.util.stream.IntStream;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -41,7 +42,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -95,6 +98,8 @@ public class ReactiveElasticsearchClientTests {
 
 		syncClient = TestUtils.restHighLevelClient();
 		client = TestUtils.reactiveClient();
+
+		TestUtils.deleteIndex(INDEX_I, INDEX_II);
 	}
 
 	@After
@@ -139,12 +144,11 @@ public class ReactiveElasticsearchClientTests {
 	@Test // DATAES-519
 	public void getOnNonExistingIndexShouldThrowException() {
 
-		client.get(new GetRequest(INDEX_I, TYPE_I, "nonono"))
-				.as(StepVerifier::create)
-				.expectError(ElasticsearchStatusException.class)
+		client.get(new GetRequest(INDEX_I, TYPE_I, "nonono")) //
+				.as(StepVerifier::create) //
+				.expectError(ElasticsearchStatusException.class) //
 				.verify();
 	}
-
 
 	@Test // DATAES-488
 	public void getShouldFetchDocumentById() {
@@ -233,13 +237,9 @@ public class ReactiveElasticsearchClientTests {
 				.add(INDEX_I, TYPE_I, id2); //
 
 		client.multiGet(request) //
+				.map(GetResult::getId) //
 				.as(StepVerifier::create) //
-				.consumeNextWith(it -> {
-					assertThat(it.getId()).isEqualTo(id1);
-				}) //
-				.consumeNextWith(it -> {
-					assertThat(it.getId()).isEqualTo(id2);
-				}) //
+				.expectNext(id1, id2) //
 				.verifyComplete();
 	}
 
@@ -265,13 +265,9 @@ public class ReactiveElasticsearchClientTests {
 				.add(INDEX_II, TYPE_II, id2);
 
 		client.multiGet(request) //
+				.map(GetResult::getId) //
 				.as(StepVerifier::create) //
-				.consumeNextWith(it -> {
-					assertThat(it.getId()).isEqualTo(id1);
-				}) //
-				.consumeNextWith(it -> {
-					assertThat(it.getId()).isEqualTo(id2);
-				}) //
+				.expectNext(id1, id2) //
 				.verifyComplete();
 	}
 
@@ -322,10 +318,7 @@ public class ReactiveElasticsearchClientTests {
 
 		client.index(request) //
 				.as(StepVerifier::create) //
-				.consumeErrorWith(error -> {
-					assertThat(error).isInstanceOf(ElasticsearchStatusException.class);
-				}) //
-				.verify();
+				.verifyError(ElasticsearchStatusException.class);
 	}
 
 	@Test // DATAES-488
@@ -374,10 +367,7 @@ public class ReactiveElasticsearchClientTests {
 
 		client.update(request) //
 				.as(StepVerifier::create) //
-				.consumeErrorWith(error -> {
-					assertThat(error).isInstanceOf(ElasticsearchStatusException.class);
-				}) //
-				.verify();
+				.verifyError(ElasticsearchStatusException.class);
 	}
 
 	@Test // DATAES-488
@@ -449,11 +439,9 @@ public class ReactiveElasticsearchClientTests {
 				.setQuery(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("_id", id)));
 
 		client.deleteBy(request) //
+				.map(BulkByScrollResponse::getDeleted) //
 				.as(StepVerifier::create) //
-				.consumeNextWith(it -> {
-
-					assertThat(it.getDeleted()).isEqualTo(1);
-				}) //
+				.expectNext(1L) //
 				.verifyComplete();
 	}
 
@@ -468,10 +456,9 @@ public class ReactiveElasticsearchClientTests {
 				.setQuery(QueryBuilders.boolQuery().must(QueryBuilders.termQuery("_id", "it-was-not-me")));
 
 		client.deleteBy(request) //
+				.map(BulkByScrollResponse::getDeleted) //
 				.as(StepVerifier::create) //
-				.consumeNextWith(it -> {
-					assertThat(it.getDeleted()).isEqualTo(0);
-				}) //
+				.expectNext(0L)//
 				.verifyComplete();
 	}
 
@@ -502,21 +489,179 @@ public class ReactiveElasticsearchClientTests {
 		request = request.scroll(TimeValue.timeValueMinutes(1));
 
 		client.scroll(HttpHeaders.EMPTY, request) //
-				.take(73)
+				.take(73) //
 				.as(StepVerifier::create) //
 				.expectNextCount(73) //
 				.verifyComplete();
 	}
 
-	AddToIndexOfType addSourceDocument() {
+	@Test // DATAES-569
+	public void indexExistsShouldReturnTrueIfSo() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().existsIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.expectNext(true) //
+				.verifyComplete();
+	}
+
+	@Test // DATAES-569
+	public void indexExistsShouldReturnFalseIfNot() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().existsIndex(request -> request.indices(INDEX_II)) //
+				.as(StepVerifier::create) //
+				.expectNext(false) //
+				.verifyComplete();
+	}
+
+	@Test // DATAES-569
+	public void createIndex() throws IOException {
+
+		client.indices().createIndex(request -> request.index(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyComplete();
+
+		assertThat(syncClient.indices().exists(new GetIndexRequest().indices(INDEX_I), RequestOptions.DEFAULT)).isTrue();
+	}
+
+	@Test // DATAES-569
+	public void createExistingIndexErrors() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().createIndex(request -> request.index(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyError(ElasticsearchStatusException.class);
+	}
+
+	@Test // DATAES-569
+	public void deleteExistingIndex() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().deleteIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyComplete();
+
+		assertThat(syncClient.indices().exists(new GetIndexRequest().indices(INDEX_I), RequestOptions.DEFAULT)).isFalse();
+	}
+
+	@Test // DATAES-569
+	public void deleteNonExistingIndexErrors() {
+
+		client.indices().deleteIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyError(ElasticsearchStatusException.class);
+	}
+
+	@Test // DATAES-569
+	public void openExistingIndex() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().openIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyComplete();
+	}
+
+	@Test // DATAES-569
+	public void openNonExistingIndex() {
+
+		client.indices().openIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyError(ElasticsearchStatusException.class);
+	}
+
+	@Test // DATAES-569
+	public void closeExistingIndex() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().openIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyComplete();
+	}
+
+	@Test // DATAES-569
+	public void closeNonExistingIndex() {
+
+		client.indices().closeIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyError(ElasticsearchStatusException.class);
+	}
+
+	@Test // DATAES-569
+	public void refreshIndex() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().refreshIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyComplete();
+	}
+
+	@Test // DATAES-569
+	public void refreshNonExistingIndex() {
+
+		client.indices().refreshIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyError(ElasticsearchStatusException.class);
+	}
+
+	@Test // DATAES-569
+	public void updateMapping() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		Map<String, Object> jsonMap = Collections.singletonMap("properties",
+				Collections.singletonMap("message", Collections.singletonMap("type", "text")));
+
+		client.indices().updateMapping(request -> request.indices(INDEX_I).type(TYPE_I).source(jsonMap)) //
+				.as(StepVerifier::create) //
+				.verifyComplete();
+	}
+
+	@Test // DATAES-569
+	public void updateMappingNonExistingIndex() {
+
+		Map<String, Object> jsonMap = Collections.singletonMap("properties",
+				Collections.singletonMap("message", Collections.singletonMap("type", "text")));
+
+		client.indices().updateMapping(request -> request.indices(INDEX_I).type(TYPE_I).source(jsonMap)) //
+				.as(StepVerifier::create) //
+				.verifyError(ElasticsearchStatusException.class);
+	}
+
+	@Test // DATAES-569
+	public void flushIndex() throws IOException {
+
+		syncClient.indices().create(new CreateIndexRequest(INDEX_I), RequestOptions.DEFAULT);
+
+		client.indices().flushIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyComplete();
+	}
+
+	@Test // DATAES-569
+	public void flushNonExistingIndex() {
+
+		client.indices().flushIndex(request -> request.indices(INDEX_I)) //
+				.as(StepVerifier::create) //
+				.verifyError(ElasticsearchStatusException.class);
+	}
+
+	private AddToIndexOfType addSourceDocument() {
 		return add(DOC_SOURCE);
 	}
 
-	AddToIndexOfType add(Map source) {
+	private AddToIndexOfType add(Map<String, ? extends Object> source) {
 		return new AddDocument(source);
 	}
 
-	IndexRequest indexRequest(Map source, String index, String type) {
+	private IndexRequest indexRequest(Map source, String index, String type) {
 
 		return new IndexRequest(index, type) //
 				.id(UUID.randomUUID().toString()) //
@@ -525,13 +670,9 @@ public class ReactiveElasticsearchClientTests {
 				.create(true);
 	}
 
-	String doIndex(Map source, String index, String type) {
-
-		try {
-			return syncClient.index(indexRequest(source, index, type)).getId();
-		} catch (IOException e) {
-			throw new RuntimeException(e);
-		}
+	@SneakyThrows
+	private String doIndex(Map<?, ?> source, String index, String type) {
+		return syncClient.index(indexRequest(source, index, type), RequestOptions.DEFAULT).getId();
 	}
 
 	interface AddToIndexOfType extends AddToIndex {
@@ -544,10 +685,10 @@ public class ReactiveElasticsearchClientTests {
 
 	class AddDocument implements AddToIndexOfType {
 
-		Map source;
+		Map<String, ? extends Object> source;
 		@Nullable String type;
 
-		AddDocument(Map source) {
+		AddDocument(Map<String, ? extends Object> source) {
 			this.source = source;
 		}
 
@@ -560,7 +701,7 @@ public class ReactiveElasticsearchClientTests {
 
 		@Override
 		public String to(String index) {
-			return doIndex(new LinkedHashMap(source), index, type);
+			return doIndex(new LinkedHashMap<>(source), index, type);
 		}
 	}
 

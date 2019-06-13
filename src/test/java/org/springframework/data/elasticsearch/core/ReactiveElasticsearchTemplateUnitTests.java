@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,13 +18,19 @@ package org.springframework.data.elasticsearch.core;
 import static org.assertj.core.api.Assertions.*;
 import static org.elasticsearch.action.search.SearchRequest.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.data.elasticsearch.annotations.FieldType.*;
 
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.lang.Double;
+import java.lang.Long;
+import java.lang.Object;
 import java.util.Collections;
 
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -41,15 +47,24 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.ScriptedField;
 import org.springframework.data.elasticsearch.client.reactive.ReactiveElasticsearchClient;
+import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.StringQuery;
-import org.springframework.data.elasticsearch.entities.SampleEntity;
 
 /**
  * @author Christoph Strobl
  * @currentRead Fool's Fate - Robin Hobb
+ * @author Peter-Josef Meisch
  */
 public class ReactiveElasticsearchTemplateUnitTests {
 
@@ -61,6 +76,7 @@ public class ReactiveElasticsearchTemplateUnitTests {
 
 	@Before
 	public void setUp() {
+
 		template = new ReactiveElasticsearchTemplate(client);
 	}
 
@@ -126,7 +142,6 @@ public class ReactiveElasticsearchTemplateUnitTests {
 		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
 		when(client.search(captor.capture())).thenReturn(Flux.empty());
 
-
 		template.find(new CriteriaQuery(new Criteria("*")).setPageable(PageRequest.of(2, 50)), SampleEntity.class) //
 				.as(StepVerifier::create) //
 				.verifyComplete();
@@ -140,7 +155,6 @@ public class ReactiveElasticsearchTemplateUnitTests {
 
 		ArgumentCaptor<SearchRequest> captor = ArgumentCaptor.forClass(SearchRequest.class);
 		when(client.scroll(captor.capture())).thenReturn(Flux.empty());
-
 
 		template.find(new CriteriaQuery(new Criteria("*")).setPageable(Pageable.unpaged()), SampleEntity.class) //
 				.as(StepVerifier::create) //
@@ -231,5 +245,30 @@ public class ReactiveElasticsearchTemplateUnitTests {
 				.verifyComplete();
 
 		assertThat(captor.getValue().indicesOptions()).isEqualTo(IndicesOptions.LENIENT_EXPAND_OPEN);
+	}
+
+	/**
+	 * @author Rizwan Idrees
+	 * @author Mohsin Husen
+	 * @author Chris White
+	 * @author Sascha Woo
+	 */
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@Builder
+	@Document(indexName = "test-index-sample-core-reactive-template-Unit", type = "test-type", shards = 1, replicas = 0,
+			refreshInterval = "-1")
+	static class SampleEntity {
+
+		@Id private String id;
+		@Field(type = Text, store = true, fielddata = true) private String type;
+		@Field(type = Text, store = true, fielddata = true) private String message;
+		private int rate;
+		@ScriptedField private Double scriptedRate;
+		private boolean available;
+		private String highlightedMessage;
+		private GeoPoint location;
+		@Version private Long version;
 	}
 }

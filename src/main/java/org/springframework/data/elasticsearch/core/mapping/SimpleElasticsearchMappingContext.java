@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,6 +22,7 @@ import org.springframework.data.mapping.context.AbstractMappingContext;
 import org.springframework.data.mapping.model.Property;
 import org.springframework.data.mapping.model.SimpleTypeHolder;
 import org.springframework.data.util.TypeInformation;
+import org.springframework.lang.Nullable;
 
 /**
  * SimpleElasticsearchMappingContext
@@ -30,14 +31,15 @@ import org.springframework.data.util.TypeInformation;
  * @author Mohsin Husen
  * @author Mark Paluch
  */
-public class SimpleElasticsearchMappingContext extends
-		AbstractMappingContext<SimpleElasticsearchPersistentEntity<?>, ElasticsearchPersistentProperty> implements ApplicationContextAware {
+public class SimpleElasticsearchMappingContext
+		extends AbstractMappingContext<SimpleElasticsearchPersistentEntity<?>, ElasticsearchPersistentProperty>
+		implements ApplicationContextAware {
 
-	private ApplicationContext context;
+	private @Nullable ApplicationContext context;
 
 	@Override
 	protected <T> SimpleElasticsearchPersistentEntity<?> createPersistentEntity(TypeInformation<T> typeInformation) {
-		final SimpleElasticsearchPersistentEntity<T> persistentEntity = new SimpleElasticsearchPersistentEntity<>(
+		SimpleElasticsearchPersistentEntity<T> persistentEntity = new SimpleElasticsearchPersistentEntity<>(
 				typeInformation);
 		if (context != null) {
 			persistentEntity.setApplicationContext(context);

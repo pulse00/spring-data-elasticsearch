@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -41,14 +41,14 @@ import org.springframework.data.repository.core.support.DefaultRepositoryMetadat
 @RunWith(MockitoJUnitRunner.class)
 public class ElasticsearchRepositoryFactoryTests {
 
-	@Mock
-	private ElasticsearchOperations operations;
+	@Mock private ElasticsearchOperations operations;
 	private ElasticsearchConverter converter;
 	private ElasticsearchRepositoryFactory factory;
 	MappingContext<? extends ElasticsearchPersistentEntity<?>, ElasticsearchPersistentProperty> mappingContext = new SimpleElasticsearchMappingContext();
 
 	@Before
 	public void before() {
+
 		converter = new MappingElasticsearchConverter(mappingContext);
 		when(operations.getElasticsearchConverter()).thenReturn(converter);
 		factory = new ElasticsearchRepositoryFactory(operations);
@@ -56,6 +56,7 @@ public class ElasticsearchRepositoryFactoryTests {
 
 	@Test(expected = IllegalArgumentException.class)
 	public void shouldThrowExceptionGivenQueryDslRepository() {
+
 		// given
 		RepositoryMetadata metadata = new DefaultRepositoryMetadata(QuerydslPredicateExecutor.class);
 		// when

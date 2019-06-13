@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,13 +15,16 @@
  */
 package org.springframework.data.elasticsearch;
 
+import static java.util.Arrays.*;
+
 import java.util.UUID;
+
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.transport.Netty4Plugin;
+
 import org.springframework.data.elasticsearch.client.NodeClientFactoryBean;
-import static java.util.Arrays.*;
 
 /**
  * @author Mohsin Husen
@@ -36,14 +39,9 @@ public class Utils {
 		String pathData = "target/elasticsearchTestData";
 		String clusterName = UUID.randomUUID().toString();
 
-		return new NodeClientFactoryBean.TestNode(
-				Settings.builder()
-						.put("transport.type", "netty4")
-						.put("http.type", "netty4")
-						.put("path.home", pathHome)
-						.put("path.data", pathData)
-						.put("cluster.name", clusterName)
-						.put("node.max_local_storage_nodes", 100)
-						.build(), asList(Netty4Plugin.class)).start().client();
+		return new NodeClientFactoryBean.TestNode(Settings.builder().put("transport.type", "netty4")
+				.put("http.type", "netty4").put("path.home", pathHome).put("path.data", pathData)
+				.put("cluster.name", clusterName).put("node.max_local_storage_nodes", 100).build(), asList(Netty4Plugin.class))
+						.start().client();
 	}
 }

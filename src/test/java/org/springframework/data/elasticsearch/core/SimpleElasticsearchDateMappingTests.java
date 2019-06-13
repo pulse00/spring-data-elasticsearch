@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,33 +15,60 @@
  */
 package org.springframework.data.elasticsearch.core;
 
-import java.beans.IntrospectionException;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import static org.assertj.core.api.Assertions.*;
+import static org.springframework.data.elasticsearch.annotations.FieldType.*;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.junit.Assert;
+import lombok.Data;
+
+import java.io.IOException;
+import java.util.Date;
+
 import org.junit.Test;
-import org.springframework.data.elasticsearch.entities.SampleDateMappingEntity;
+
+import org.springframework.data.annotation.Id;
+import org.springframework.data.elasticsearch.annotations.DateFormat;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.FieldType;
 
 /**
  * @author Jakub Vavrik
  * @author Mohsin Husen
  * @author Don Wellington
+ * @author Peter-Josef Meisch
  */
-public class SimpleElasticsearchDateMappingTests {
+public class SimpleElasticsearchDateMappingTests extends MappingContextBaseTests {
 
-	private static final String EXPECTED_MAPPING = "{\"mapping\":{\"properties\":{\"message\":{\"store\":true," +
-			"\"type\":\"text\",\"index\":false,\"analyzer\":\"standard\"},\"customFormatDate\":{\"store\":false,\"type\":\"date\",\"format\":\"dd.MM.yyyy hh:mm\"}," +
-			"\"defaultFormatDate\":{\"store\":false,\"type\":\"date\"},\"basicFormatDate\":{\"store\":false,\"" +
-			"type\":\"date\",\"format\":\"basic_date\"}}}}";
+	private static final String EXPECTED_MAPPING = "{\"mapping\":{\"properties\":{\"message\":{\"store\":true,"
+			+ "\"type\":\"text\",\"index\":false,\"analyzer\":\"standard\"},\"customFormatDate\":{\"store\":false,\"type\":\"date\",\"format\":\"dd.MM.yyyy hh:mm\"},"
+			+ "\"defaultFormatDate\":{\"store\":false,\"type\":\"date\"},\"basicFormatDate\":{\"store\":false,\""
+			+ "type\":\"date\",\"format\":\"basic_date\"}}}}";
 
-	@Test
-	public void testCorrectDateMappings() throws NoSuchFieldException, IntrospectionException, IOException {
-		XContentBuilder xContentBuilder = MappingBuilder.buildMapping(SampleDateMappingEntity.class, "mapping", "id", null);
-		xContentBuilder.close();
-		ByteArrayOutputStream bos = (ByteArrayOutputStream) xContentBuilder.getOutputStream();
-		String result = bos.toString();
-		Assert.assertEquals(EXPECTED_MAPPING, result);
+	@Test // DATAES-568
+	public void testCorrectDateMappings() throws IOException {
+
+		String mapping = getMappingBuilder().buildPropertyMapping(SampleDateMappingEntity.class);
+
+		assertThat(mapping).isEqualTo(EXPECTED_MAPPING);
+	}
+
+	/**
+	 * @author Jakub Vavrik
+	 */
+	@Data
+	@Document(indexName = "test-index-date-mapping-core", type = "mapping", shards = 1, replicas = 0,
+			refreshInterval = "-1")
+	static class SampleDateMappingEntity {
+
+		@Id private String id;
+
+		@Field(type = Text, index = false, store = true, analyzer = "standard") private String message;
+
+		@Field(type = Date, format = DateFormat.custom,
+				pattern = "dd.MM.yyyy hh:mm") private java.util.Date customFormatDate;
+
+		@Field(type = FieldType.Date) private Date defaultFormatDate;
+
+		@Field(type = FieldType.Date, format = DateFormat.basic_date) private Date basicFormatDate;
 	}
 }

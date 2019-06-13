@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,17 +16,21 @@
 package org.springframework.data.elasticsearch.core;
 
 import static java.util.Arrays.*;
-import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.data.elasticsearch.annotations.FieldType.*;
 
+import lombok.Data;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.lang.Double;
+import java.lang.Long;
+import java.lang.Object;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.action.get.GetResponse;
@@ -47,14 +51,19 @@ import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameters;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
 import org.springframework.core.convert.support.DefaultConversionService;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.Score;
+import org.springframework.data.elasticsearch.annotations.ScriptedField;
 import org.springframework.data.elasticsearch.core.aggregation.AggregatedPage;
+import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.data.elasticsearch.core.mapping.SimpleElasticsearchMappingContext;
-import org.springframework.data.elasticsearch.entities.Car;
-import org.springframework.data.elasticsearch.entities.SampleEntity;
 
 import com.fasterxml.jackson.databind.util.ArrayIterator;
 
@@ -65,6 +74,7 @@ import com.fasterxml.jackson.databind.util.ArrayIterator;
  * @author Mark Paluch
  * @author Ilkang Na
  * @author Christoph Strobl
+ * @author Peter-Josef Meisch
  */
 @RunWith(Parameterized.class)
 public class DefaultResultMapperTests {
@@ -99,7 +109,8 @@ public class DefaultResultMapperTests {
 
 	@Test
 	public void shouldMapAggregationsToPage() {
-		// Given
+
+		// given
 		SearchHit[] hits = { createCarHit("Ford", "Grat"), createCarHit("BMW", "Arrow") };
 		SearchHits searchHits = mock(SearchHits.class);
 		when(searchHits.getTotalHits()).thenReturn(2L);
@@ -109,70 +120,70 @@ public class DefaultResultMapperTests {
 		Aggregations aggregations = new Aggregations(asList(createCarAggregation()));
 		when(response.getAggregations()).thenReturn(aggregations);
 
-		// When
-		AggregatedPage<Car> page = (AggregatedPage<Car>) resultMapper.mapResults(response, Car.class, Pageable.unpaged());
+		// when
+		AggregatedPage<Car> page = resultMapper.mapResults(response, Car.class, Pageable.unpaged());
 
-		// Then
+		// then
 		page.hasFacets();
-		assertThat(page.hasAggregations(), is(true));
-		assertThat(page.getAggregation("Diesel").getName(), is("Diesel"));
+		assertThat(page.hasAggregations()).isTrue();
+		assertThat(page.getAggregation("Diesel").getName()).isEqualTo("Diesel");
 	}
 
 	@Test
 	public void shouldMapSearchRequestToPage() {
-		// Given
+
+		// given
 		SearchHit[] hits = { createCarHit("Ford", "Grat"), createCarHit("BMW", "Arrow") };
 		SearchHits searchHits = mock(SearchHits.class);
 		when(searchHits.getTotalHits()).thenReturn(2L);
 		when(searchHits.iterator()).thenReturn(new ArrayIterator(hits));
 		when(response.getHits()).thenReturn(searchHits);
 
-		// When
+		// when
 		Page<Car> page = resultMapper.mapResults(response, Car.class, Pageable.unpaged());
 
-		// Then
-		assertThat(page.hasContent(), is(true));
-		assertThat(page.getTotalElements(), is(2L));
-		assertThat(page.getContent().get(0).getName(), is("Ford"));
+		// then
+		assertThat(page.hasContent()).isTrue();
+		assertThat(page.getTotalElements()).isEqualTo(2);
+		assertThat(page.getContent().get(0).getName()).isEqualTo("Ford");
 	}
 
 	@Test
 	public void shouldMapPartialSearchRequestToObject() {
-		// Given
+
+		// given
 		SearchHit[] hits = { createCarPartialHit("Ford", "Grat"), createCarPartialHit("BMW", "Arrow") };
 		SearchHits searchHits = mock(SearchHits.class);
 		when(searchHits.getTotalHits()).thenReturn(2L);
 		when(searchHits.iterator()).thenReturn(new ArrayIterator(hits));
 		when(response.getHits()).thenReturn(searchHits);
 
-		// When
+		// when
 		Page<Car> page = resultMapper.mapResults(response, Car.class, Pageable.unpaged());
 
-		// Then
-		assertThat(page.hasContent(), is(true));
-		assertThat(page.getTotalElements(), is(2L));
-		assertThat(page.getContent().get(0).getName(), is("Ford"));
+		// then
+		assertThat(page.hasContent()).isTrue();
+		assertThat(page.getTotalElements()).isEqualTo(2);
+		assertThat(page.getContent().get(0).getName()).isEqualTo("Ford");
 	}
 
 	@Test
 	public void shouldMapGetRequestToObject() {
-		// Given
+
+		// given
 		GetResponse response = mock(GetResponse.class);
 		when(response.getSourceAsString()).thenReturn(createJsonCar("Ford", "Grat"));
 
-		// When
+		// when
 		Car result = resultMapper.mapResult(response, Car.class);
 
-		// Then
-		assertThat(result, notNullValue());
-		assertThat(result.getModel(), is("Grat"));
-		assertThat(result.getName(), is("Ford"));
+		// then
+		assertThat(result).isNotNull();
+		assertThat(result.getModel()).isEqualTo("Grat");
+		assertThat(result.getName()).isEqualTo("Ford");
 	}
 
-	/**
-	 * @see DATAES-281.
-	 */
-	@Test
+	@Test // DATAES-281
 	@Ignore("fix me - UnsupportedOperation")
 	public void setsIdentifierOnImmutableType() {
 
@@ -182,24 +193,26 @@ public class DefaultResultMapperTests {
 
 		ImmutableEntity result = resultMapper.mapResult(response, ImmutableEntity.class);
 
-		assertThat(result, is(notNullValue()));
-		assertThat(result.getId(), is("identifier"));
+		assertThat(result).isNotNull();
+		assertThat(result.getId()).isEqualTo("identifier");
 	}
 
 	@Test // DATAES-198
 	public void setsVersionFromGetResponse() {
+
 		GetResponse response = mock(GetResponse.class);
 		when(response.getSourceAsString()).thenReturn("{}");
 		when(response.getVersion()).thenReturn(1234L);
 
-		SampleEntity result = resultMapper.mapResult(response, SampleEntity.class);
+		MappedEntity result = resultMapper.mapResult(response, MappedEntity.class);
 
-		assertThat(result, is(notNullValue()));
-		assertThat(result.getVersion(), is(1234L));
+		assertThat(result).isNotNull();
+		assertThat(result.getVersion()).isEqualTo(1234);
 	}
 
 	@Test // DATAES-198
 	public void setsVersionFromMultiGetResponse() {
+
 		GetResponse response1 = mock(GetResponse.class);
 		when(response1.getSourceAsString()).thenReturn("{}");
 		when(response1.isExists()).thenReturn(true);
@@ -214,17 +227,17 @@ public class DefaultResultMapperTests {
 		when(multiResponse.getResponses()).thenReturn(new MultiGetItemResponse[] {
 				new MultiGetItemResponse(response1, null), new MultiGetItemResponse(response2, null) });
 
-		LinkedList<SampleEntity> results = resultMapper.mapResults(multiResponse, SampleEntity.class);
+		List<MappedEntity> results = resultMapper.mapResults(multiResponse, MappedEntity.class);
 
-		assertThat(results, is(notNullValue()));
-		assertThat(results, hasSize(2));
+		assertThat(results).isNotNull().hasSize(2);
 
-		assertThat(results.get(0).getVersion(), is(1234L));
-		assertThat(results.get(1).getVersion(), is(5678L));
+		assertThat(results.get(0).getVersion()).isEqualTo(1234);
+		assertThat(results.get(1).getVersion()).isEqualTo(5678);
 	}
 
 	@Test // DATAES-198
 	public void setsVersionFromSearchResponse() {
+
 		SearchHit hit1 = mock(SearchHit.class);
 		when(hit1.getSourceAsString()).thenReturn("{}");
 		when(hit1.getVersion()).thenReturn(1234L);
@@ -240,28 +253,31 @@ public class DefaultResultMapperTests {
 		SearchResponse searchResponse = mock(SearchResponse.class);
 		when(searchResponse.getHits()).thenReturn(searchHits);
 
-		AggregatedPage<SampleEntity> results = resultMapper.mapResults(searchResponse, SampleEntity.class,
+		AggregatedPage<MappedEntity> results = resultMapper.mapResults(searchResponse, MappedEntity.class,
 				mock(Pageable.class));
 
-		assertThat(results, is(notNullValue()));
+		assertThat(results).isNotNull();
 
-		assertThat(results.getContent().get(0).getVersion(), is(1234L));
-		assertThat(results.getContent().get(1).getVersion(), is(5678L));
+		assertThat(results.getContent().get(0).getVersion()).isEqualTo(1234);
+		assertThat(results.getContent().get(1).getVersion()).isEqualTo(5678);
 	}
 
 	private Aggregation createCarAggregation() {
+
 		Aggregation aggregation = mock(Terms.class);
 		when(aggregation.getName()).thenReturn("Diesel");
 		return aggregation;
 	}
 
 	private SearchHit createCarHit(String name, String model) {
+
 		SearchHit hit = mock(SearchHit.class);
 		when(hit.getSourceAsString()).thenReturn(createJsonCar(name, model));
 		return hit;
 	}
 
 	private SearchHit createCarPartialHit(String name, String model) {
+
 		SearchHit hit = mock(SearchHit.class);
 		when(hit.getSourceAsString()).thenReturn(null);
 		when(hit.getFields()).thenReturn(createCarFields(name, model));
@@ -269,7 +285,8 @@ public class DefaultResultMapperTests {
 	}
 
 	private String createJsonCar(String name, String model) {
-		final String q = "\"";
+
+		String q = "\"";
 		StringBuffer sb = new StringBuffer();
 		sb.append("{").append(q).append("name").append(q).append(":").append(q).append(name).append(q).append(",");
 		sb.append(q).append("model").append(q).append(":").append(q).append(model).append(q).append("}");
@@ -277,6 +294,7 @@ public class DefaultResultMapperTests {
 	}
 
 	private Map<String, DocumentField> createCarFields(String name, String model) {
+
 		Map<String, DocumentField> result = new HashMap<>();
 		result.put("name", new DocumentField("name", asList(name)));
 		result.put("model", new DocumentField("model", asList(model)));
@@ -290,4 +308,28 @@ public class DefaultResultMapperTests {
 
 		private final String id, name;
 	}
+
+	@Data
+	static class Car {
+
+		private String name;
+		private String model;
+	}
+
+	@Data
+	@Document(indexName = "test-index-sample-default-result-mapper", type = "test-type")
+	static class MappedEntity {
+
+		@Id private String id;
+		@Field(type = Text, store = true, fielddata = true) private String type;
+		@Field(type = Text, store = true, fielddata = true) private String message;
+		private int rate;
+		@ScriptedField private Double scriptedRate;
+		private boolean available;
+		private String highlightedMessage;
+		private GeoPoint location;
+		@Version private Long version;
+		@Score private float score;
+	}
+
 }

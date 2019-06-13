@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,13 +17,18 @@ package org.springframework.data.elasticsearch.core;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.springframework.data.elasticsearch.annotations.FieldType.*;
 
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.lang.Long;
+import java.lang.Object;
 import java.net.ConnectException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -34,13 +39,16 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
 import org.springframework.core.convert.support.DefaultConversionService;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Version;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -48,12 +56,15 @@ import org.springframework.data.elasticsearch.ElasticsearchVersion;
 import org.springframework.data.elasticsearch.ElasticsearchVersionRule;
 import org.springframework.data.elasticsearch.TestUtils;
 import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.Field;
+import org.springframework.data.elasticsearch.annotations.Score;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.IndexQuery;
 import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder;
+import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder;
+import org.springframework.data.elasticsearch.core.query.SearchQuery;
 import org.springframework.data.elasticsearch.core.query.StringQuery;
-import org.springframework.data.elasticsearch.entities.SampleEntity;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.util.StringUtils;
@@ -63,6 +74,7 @@ import org.springframework.util.StringUtils;
  *
  * @author Christoph Strobl
  * @author Mark Paluch
+ * @author Peter-Josef Meisch
  * @currentRead Golden Fool - Robin Hobb
  */
 @RunWith(SpringRunner.class)
@@ -71,7 +83,7 @@ public class ReactiveElasticsearchTemplateTests {
 
 	public @Rule ElasticsearchVersionRule elasticsearchVersion = ElasticsearchVersionRule.any();
 
-	static final String DEFAULT_INDEX = "test-index-sample";
+	static final String DEFAULT_INDEX = "reactive-template-test-index";
 	static final String ALTERNATE_INDEX = "reactive-template-tests-alternate-index";
 
 	private ElasticsearchRestTemplate restTemplate;
@@ -80,7 +92,7 @@ public class ReactiveElasticsearchTemplateTests {
 	@Before
 	public void setUp() {
 
-		TestUtils.deleteIndex(DEFAULT_INDEX, ALTERNATE_INDEX);
+		deleteIndices();
 
 		restTemplate = new ElasticsearchRestTemplate(TestUtils.restHighLevelClient());
 		restTemplate.createIndex(SampleEntity.class);
@@ -90,6 +102,15 @@ public class ReactiveElasticsearchTemplateTests {
 		template = new ReactiveElasticsearchTemplate(TestUtils.reactiveClient(), restTemplate.getElasticsearchConverter(),
 				new DefaultResultMapper(new ElasticsearchEntityMapper(
 						restTemplate.getElasticsearchConverter().getMappingContext(), new DefaultConversionService())));
+	}
+
+	@After
+	public void tearDown() {
+		deleteIndices();
+	}
+
+	private void deleteIndices() {
+		TestUtils.deleteIndex(DEFAULT_INDEX, ALTERNATE_INDEX, "rx-template-test-index-this", "rx-template-test-index-that");
 	}
 
 	@Test // DATAES-504
@@ -519,6 +540,66 @@ public class ReactiveElasticsearchTemplateTests {
 				.verifyComplete();
 	}
 
+	@Test // DATAES-547
+	@ElasticsearchVersion(asOf = "6.5.0")
+	public void shouldDeleteAcrossIndex() {
+
+		String indexPrefix = "rx-template-test-index";
+		String thisIndex = indexPrefix + "-this";
+		String thatIndex = indexPrefix + "-that";
+
+		template.save(randomEntity("test"), thisIndex) //
+				.then(template.save(randomEntity("test"), thatIndex)) //
+				.then() //
+				.as(StepVerifier::create)//
+				.verifyComplete();
+
+		restTemplate.refresh(thisIndex);
+		restTemplate.refresh(thatIndex);
+
+		SearchQuery searchQuery = new NativeSearchQueryBuilder() //
+				.withQuery(termQuery("message", "test")) //
+				.withIndices(indexPrefix + "*") //
+				.build();
+
+		template.deleteBy(searchQuery, SampleEntity.class) //
+				.as(StepVerifier::create) //
+				.expectNext(2L) //
+				.verifyComplete();
+
+		TestUtils.deleteIndex(thisIndex, thatIndex);
+	}
+
+	@Test // DATAES-547
+	@ElasticsearchVersion(asOf = "6.5.0")
+	public void shouldDeleteAcrossIndexWhenNoMatchingDataPresent() {
+
+		String indexPrefix = "rx-template-test-index";
+		String thisIndex = indexPrefix + "-this";
+		String thatIndex = indexPrefix + "-that";
+
+		template.save(randomEntity("positive"), thisIndex) //
+				.then(template.save(randomEntity("positive"), thatIndex)) //
+				.then() //
+				.as(StepVerifier::create)//
+				.verifyComplete();
+
+		restTemplate.refresh(thisIndex);
+		restTemplate.refresh(thatIndex);
+
+		SearchQuery searchQuery = new NativeSearchQueryBuilder() //
+				.withQuery(termQuery("message", "negative")) //
+				.withIndices(indexPrefix + "*") //
+				.build();
+
+		template.deleteBy(searchQuery, SampleEntity.class) //
+				.as(StepVerifier::create) //
+				.expectNext(0L) //
+				.verifyComplete();
+
+		TestUtils.deleteIndex(thisIndex, thatIndex);
+	}
+
 	@Test // DATAES-504
 	@ElasticsearchVersion(asOf = "6.5.0")
 	public void deleteByQueryShouldReturnNumberOfDeletedDocuments() {
@@ -602,5 +683,19 @@ public class ReactiveElasticsearchTemplateTests {
 	@NoArgsConstructor
 	static class Message {
 		String message;
+	}
+
+	@Data
+	@Builder
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@EqualsAndHashCode(exclude = "score")
+	@Document(indexName = DEFAULT_INDEX, type = "test-type", shards = 1, replicas = 0, refreshInterval = "-1")
+	static class SampleEntity {
+
+		@Id private String id;
+		@Field(type = Text, store = true, fielddata = true) private String message;
+		@Version private Long version;
+		@Score private float score;
 	}
 }

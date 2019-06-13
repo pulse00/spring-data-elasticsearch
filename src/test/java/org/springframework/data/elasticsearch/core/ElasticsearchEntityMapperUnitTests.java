@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,9 +17,12 @@ package org.springframework.data.elasticsearch.core;
 
 import static org.assertj.core.api.Assertions.*;
 
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.RequiredArgsConstructor;
 
 import java.io.IOException;
@@ -35,6 +38,7 @@ import java.util.Map;
 
 import org.junit.Before;
 import org.junit.Test;
+
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.core.convert.support.GenericConversionService;
 import org.springframework.data.annotation.Id;
@@ -43,19 +47,22 @@ import org.springframework.data.annotation.Transient;
 import org.springframework.data.annotation.TypeAlias;
 import org.springframework.data.convert.ReadingConverter;
 import org.springframework.data.convert.WritingConverter;
+import org.springframework.data.elasticsearch.annotations.Document;
+import org.springframework.data.elasticsearch.annotations.GeoPointField;
 import org.springframework.data.elasticsearch.core.convert.ElasticsearchCustomConversions;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.data.elasticsearch.core.mapping.SimpleElasticsearchMappingContext;
-import org.springframework.data.elasticsearch.entities.Car;
-import org.springframework.data.elasticsearch.entities.GeoEntity;
+import org.springframework.data.geo.Box;
+import org.springframework.data.geo.Circle;
 import org.springframework.data.geo.Point;
+import org.springframework.data.geo.Polygon;
 
 /**
  * @author Christoph Strobl
  */
 public class ElasticsearchEntityMapperUnitTests {
 
-	static final String JSON_STRING = "{\"_class\":\"org.springframework.data.elasticsearch.entities.Car\",\"name\":\"Grat\",\"model\":\"Ford\"}";
+	static final String JSON_STRING = "{\"_class\":\"org.springframework.data.elasticsearch.core.ElasticsearchEntityMapperUnitTests$Car\",\"name\":\"Grat\",\"model\":\"Ford\"}";
 	static final String CAR_MODEL = "Ford";
 	static final String CAR_NAME = "Grat";
 	ElasticsearchEntityMapper entityMapper;
@@ -203,11 +210,11 @@ public class ElasticsearchEntityMapperUnitTests {
 	@Test // DATAES-530
 	public void shouldMapGeoPointElasticsearchNames() throws IOException {
 		// given
-		final Point point = new Point(10, 20);
-		final String pointAsString = point.getX() + "," + point.getY();
-		final double[] pointAsArray = { point.getX(), point.getY() };
-		final GeoEntity geoEntity = GeoEntity.builder().pointA(point).pointB(GeoPoint.fromPoint(point))
-				.pointC(pointAsString).pointD(pointAsArray).build();
+		Point point = new Point(10, 20);
+		String pointAsString = point.getX() + "," + point.getY();
+		double[] pointAsArray = { point.getX(), point.getY() };
+		GeoEntity geoEntity = GeoEntity.builder().pointA(point).pointB(GeoPoint.fromPoint(point)).pointC(pointAsString)
+				.pointD(pointAsArray).build();
 		// when
 		String jsonResult = entityMapper.mapToString(geoEntity);
 
@@ -674,4 +681,40 @@ public class ElasticsearchEntityMapperUnitTests {
 			return new ShotGun(source.get("model").toString());
 		}
 	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@Builder
+	static class Car {
+
+		private String name;
+		private String model;
+	}
+
+	@Data
+	@NoArgsConstructor
+	@AllArgsConstructor
+	@Builder
+	@Document(indexName = "test-index-geo-core-entity-mapper", type = "geo-test-index", shards = 1, replicas = 0,
+			refreshInterval = "-1")
+	static class GeoEntity {
+
+		@Id private String id;
+
+		// geo shape - Spring Data
+		private Box box;
+		private Circle circle;
+		private Polygon polygon;
+
+		// geo point - Custom implementation + Spring Data
+		@GeoPointField private Point pointA;
+
+		private GeoPoint pointB;
+
+		@GeoPointField private String pointC;
+
+		@GeoPointField private double[] pointD;
+	}
+
 }

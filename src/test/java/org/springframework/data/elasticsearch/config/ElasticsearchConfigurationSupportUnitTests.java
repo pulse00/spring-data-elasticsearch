@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -39,7 +39,10 @@ import org.springframework.data.elasticsearch.core.convert.ElasticsearchConverte
 import org.springframework.data.elasticsearch.core.mapping.SimpleElasticsearchMappingContext;
 
 /**
+ * Unit tests for {@link ElasticsearchConfigurationSupport}.
+ *
  * @author Christoph Strobl
+ * @author Peter-Josef Meisch
  */
 public class ElasticsearchConfigurationSupportUnitTests {
 
@@ -83,6 +86,15 @@ public class ElasticsearchConfigurationSupportUnitTests {
 
 		AbstractApplicationContext context = new AnnotationConfigApplicationContext(RestConfig.class);
 		assertThat(context.getBean(ElasticsearchRestTemplate.class)).isNotNull();
+	}
+
+	@Test // DATAES-563
+	public void restConfigContainsElasticsearchOperationsByNameAndAlias() {
+
+		AbstractApplicationContext context = new AnnotationConfigApplicationContext(RestConfig.class);
+
+		assertThat(context.getBean("elasticsearchOperations")).isNotNull();
+		assertThat(context.getBean("elasticsearchTemplate")).isNotNull();
 	}
 
 	@Test // DATAES-504

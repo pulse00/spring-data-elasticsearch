@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,6 +22,7 @@ import org.springframework.data.elasticsearch.core.ElasticsearchRestTemplate;
 
 /**
  * @author Christoph Strobl
+ * @author Peter-Josef Meisch
  * @since 3.2
  * @see ElasticsearchConfigurationSupport
  */
@@ -41,7 +42,7 @@ public abstract class AbstractElasticsearchConfiguration extends ElasticsearchCo
 	 *
 	 * @return never {@literal null}.
 	 */
-	@Bean
+	@Bean(name = {"elasticsearchOperations", "elasticsearchTemplate"})
 	public ElasticsearchOperations elasticsearchOperations() {
 		return new ElasticsearchRestTemplate(elasticsearchClient(), elasticsearchConverter(), resultsMapper());
 	}
